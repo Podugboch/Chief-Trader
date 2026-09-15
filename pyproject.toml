@@ -1,3 +1,20 @@
+[project]
+name = "chief-trader"
+version = "1.0.0"
+description = "Chief Trader - Autonomous Multi-Pair Cryptocurrency Trading Bot"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pydantic>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "requests>=2.31.0",
+    "ccxt>=4.4.0",
+    "rich>=13.7.0"
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
