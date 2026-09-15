@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
@@ -21,11 +22,15 @@ class BotState:
     """Manages bot persistence across restarts and crashes."""
 
     def __init__(self, state_dir: Optional[Path] = None):
+        is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
         if state_dir is None:
-            self.state_dir = Path(__file__).resolve().parent.parent.parent / "state"
+            self.state_dir = Path("/tmp/state") if is_serverless else (Path(__file__).resolve().parent.parent.parent / "state")
         else:
             self.state_dir = Path(state_dir)
-        self.state_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         self.state_file = self.state_dir / "bot_state.json"
 
     def save(

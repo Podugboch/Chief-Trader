@@ -110,7 +110,13 @@ class BotConfig(BaseModel):
         if not pairs_list:
             pairs_list = ["BTCUSDT"]
 
-        base_d = Path(__file__).resolve().parent.parent
+        is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+        base_d = Path("/tmp") if is_serverless else Path(__file__).resolve().parent.parent
+        data_d = Path("/tmp/data_cache") if is_serverless else (base_d / "data_cache")
+        state_d = Path("/tmp/state") if is_serverless else (base_d / "state")
+        logs_d = Path("/tmp/logs") if is_serverless else (base_d / "logs")
+        flag_f = Path("/tmp/kill_switch.flag") if is_serverless else (base_d / "kill_switch.flag")
+
         cfg = cls(
             trading_mode=mode,
             default_symbol=os.getenv("DEFAULT_SYMBOL", pairs_list[0]),
@@ -119,16 +125,19 @@ class BotConfig(BaseModel):
             exchange=ExchangeConfig(),
             risk=risk_cfg,
             base_dir=base_d,
-            data_dir=base_d / "data_cache",
-            state_dir=base_d / "state",
-            logs_dir=base_d / "logs",
-            kill_switch_flag=base_d / "kill_switch.flag",
+            data_dir=data_d,
+            state_dir=state_d,
+            logs_dir=logs_d,
+            kill_switch_flag=flag_f,
         )
 
         # Create directories if they do not exist
-        cfg.data_dir.mkdir(parents=True, exist_ok=True)
-        cfg.state_dir.mkdir(parents=True, exist_ok=True)
-        cfg.logs_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            cfg.data_dir.mkdir(parents=True, exist_ok=True)
+            cfg.state_dir.mkdir(parents=True, exist_ok=True)
+            cfg.logs_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
 
         return cfg
 

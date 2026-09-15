@@ -40,29 +40,34 @@ app = FastAPI(title="Crypto Trading Bot Dashboard", version="1.2.0")
 
 def _write_env_updates(updates: Dict[str, str]) -> None:
     """Updates key-value pairs in .env while preserving comments and structure."""
-    env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-    lines = []
-    updated_keys = set()
+    if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        return
+    try:
+        env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+        lines = []
+        updated_keys = set()
 
-    if env_path.exists():
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                stripped = line.strip()
-                if stripped and not stripped.startswith("#") and "=" in stripped:
-                    key, _ = stripped.split("=", 1)
-                    key = key.strip()
-                    if key in updates:
-                        lines.append(f"{key}={updates[key]}\n")
-                        updated_keys.add(key)
-                        continue
-                lines.append(line)
+        if env_path.exists():
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and "=" in stripped:
+                        key, _ = stripped.split("=", 1)
+                        key = key.strip()
+                        if key in updates:
+                            lines.append(f"{key}={updates[key]}\n")
+                            updated_keys.add(key)
+                            continue
+                    lines.append(line)
 
-    for k, v in updates.items():
-        if k not in updated_keys:
-            lines.append(f"{k}={v}\n")
+        for k, v in updates.items():
+            if k not in updated_keys:
+                lines.append(f"{k}={v}\n")
 
-    with open(env_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+    except OSError:
+        pass
 
 
 # Shared Bot State Holder
