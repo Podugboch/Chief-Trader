@@ -1432,6 +1432,8 @@ HTML_CONTENT = """<!DOCTYPE html>
       } catch (err) {
         console.error('Failed to fetch status:', err);
       }
+    }
+
     let currentMarketSymbol = 'BTCUSDT';
 
     function switchActivePair(sym) {
