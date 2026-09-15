@@ -593,7 +593,7 @@ def close_single_position(payload: ClosePositionPayload):
     return {"status": "closed", "symbol": sym}
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def index_page():
     """Serves the complete, interactive Web Dashboard."""
     return HTML_CONTENT
