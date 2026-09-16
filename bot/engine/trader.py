@@ -14,6 +14,7 @@ import pandas as pd
 
 from bot.config import BotConfig, TradingMode
 from bot.data.fetcher import DataFetcher
+from bot.data.storage import DataStorage
 from bot.strategies.base import BaseStrategy, SignalAction, TradeSignal
 from bot.strategies.regime_adaptive import RegimeAdaptiveStrategy
 from bot.strategies.trend_momentum import TrendMomentumStrategy
@@ -47,7 +48,10 @@ class TradingBot:
         self.enable_ui = enable_ui
 
         # Data and Analysis
-        self.data_fetcher = DataFetcher(base_url=self.config.exchange.public_data_base_url)
+        self.data_fetcher = DataFetcher(
+            base_url=self.config.exchange.public_data_base_url,
+            storage=DataStorage(cache_dir=self.config.data_dir),
+        )
         self.market_analyzer = MarketAnalyzer()
         self.regime_classifier = MarketRegimeClassifier()
 
@@ -96,6 +100,7 @@ class TradingBot:
         self.kill_switch = KillSwitch(flag_path=self.config.kill_switch_flag)
         self.kill_switch.register_callback(self._on_emergency_shutdown)
         self.dashboard = BotDashboard()
+        self.last_analysis = None
 
         # Restore saved state if exists
         self._restore_state()
@@ -175,6 +180,10 @@ class TradingBot:
             equity = self.paper_exchange.get_portfolio_equity({primary_sym: mark})
             realized_pnl = sum(t.get("pnl_usd", 0.0) for t in self.paper_exchange.trade_history)
             unrealized_pnl = sum(p.unrealized_pnl for p in self.paper_exchange.positions.values())
+            total_fees = sum(t.get("fee", 0.0) for t in self.paper_exchange.trade_history)
+            regime = self.last_analysis.regime if self.last_analysis else None
+            indicators = self.last_analysis.indicators if self.last_analysis else {}
+
             self.dashboard.render_summary(
                 mode=self.config.trading_mode.value,
                 symbol=primary_sym,
@@ -183,6 +192,14 @@ class TradingBot:
                 equity=equity,
                 cash=self.paper_exchange.cash,
                 realized_pnl=realized_pnl,
+                unrealized_pnl=unrealized_pnl,
+                total_fees=total_fees,
+                regime=regime,
+                indicators=indicators,
+                positions=self.paper_exchange.positions,
+                cb_status=self.circuit_breaker.status,
+                recent_trades=self.paper_exchange.trade_history,
+                strategy_name=self.strategy.name,
             )
 
     def _evaluate_symbol(self, sym: str, tf: str) -> None:
@@ -203,6 +220,7 @@ class TradingBot:
 
         # 2. Market Analysis and Regime Classification
         analysis_report = self.market_analyzer.analyze(df, symbol=sym, timeframe=tf)
+        self.last_analysis = analysis_report
         curr_atr = analysis_report.indicators.get("atr", current_price * 0.02)
 
         # 3. Update Portfolio Valuation & Circuit Breakers

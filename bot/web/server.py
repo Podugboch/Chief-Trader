@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 import threading
 import time
@@ -255,6 +256,15 @@ def get_analysis(symbol: str = "BTCUSDT", timeframe: str = "1h"):
                 "support_2": round(report.levels.support_2, 2),
                 "recent_swing_high": round(report.levels.recent_swing_high, 2),
                 "recent_swing_low": round(report.levels.recent_swing_low, 2),
+                "fib_0": round(report.levels.fib_0, 2),
+                "fib_236": round(report.levels.fib_236, 2),
+                "fib_382": round(report.levels.fib_382, 2),
+                "fib_500": round(report.levels.fib_500, 2),
+                "fib_618": round(report.levels.fib_618, 2),
+                "fib_786": round(report.levels.fib_786, 2),
+                "fib_100": round(report.levels.fib_100, 2),
+                "nearest_fib_name": str(report.levels.nearest_fib_name),
+                "is_near_golden_pocket": bool(report.levels.is_near_golden_pocket),
             },
             "key_observations": report.key_observations,
         }
@@ -794,6 +804,45 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div class="text-[11px] text-slate-400">Bollinger %B</div>
             <div id="indBB" class="text-base font-bold text-white mt-0.5">--</div>
             <div class="text-[10px] text-slate-500">Envelope Pos</div>
+          </div>
+        </div>
+
+        <!-- Institutional Technical Analysis Suite (Discipline #9) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 pt-3">
+          <div class="bg-slate-900/70 p-3 rounded-lg border border-indigo-900/50">
+            <div class="text-[11px] text-indigo-400 font-semibold">VWAP Benchmark</div>
+            <div id="indVWAP" class="text-base font-bold text-white mt-0.5">--</div>
+            <div id="indVWAPBias" class="text-[10px] text-slate-400">Institutional flow</div>
+          </div>
+          <div class="bg-slate-900/70 p-3 rounded-lg border border-indigo-900/50">
+            <div class="text-[11px] text-indigo-400 font-semibold">Stochastic (%K/%D)</div>
+            <div id="indStoch" class="text-base font-bold text-white mt-0.5">--</div>
+            <div id="indStochState" class="text-[10px] text-slate-400">Oscillator turn</div>
+          </div>
+          <div class="bg-slate-900/70 p-3 rounded-lg border border-indigo-900/50">
+            <div class="text-[11px] text-indigo-400 font-semibold">Fib Golden Pocket</div>
+            <div id="indFib" class="text-base font-bold text-white mt-0.5">--</div>
+            <div id="indFibState" class="text-[10px] text-slate-400">0.618 / 0.500 support</div>
+          </div>
+          <div class="bg-slate-900/70 p-3 rounded-lg border border-indigo-900/50">
+            <div class="text-[11px] text-indigo-400 font-semibold">Dow Theory</div>
+            <div id="indDow" class="text-base font-bold text-white mt-0.5">--</div>
+            <div id="indDowState" class="text-[10px] text-slate-400">Market structure</div>
+          </div>
+          <div class="bg-slate-900/70 p-3 rounded-lg border border-indigo-900/50">
+            <div class="text-[11px] text-indigo-400 font-semibold">Wyckoff Phase</div>
+            <div id="indWyckoff" class="text-base font-bold text-white mt-0.5">--</div>
+            <div id="indWyckoffState" class="text-[10px] text-slate-400">Smart money cycle</div>
+          </div>
+          <div class="bg-slate-900/70 p-3 rounded-lg border border-indigo-900/50">
+            <div class="text-[11px] text-indigo-400 font-semibold">Chart Pattern</div>
+            <div id="indPattern" class="text-base font-bold text-white mt-0.5">--</div>
+            <div id="indPatternState" class="text-[10px] text-slate-400">Geometry</div>
+          </div>
+          <div class="bg-slate-900/70 p-3 rounded-lg border border-indigo-900/50">
+            <div class="text-[11px] text-indigo-400 font-semibold">Divergence</div>
+            <div id="indDivergence" class="text-base font-bold text-white mt-0.5">--</div>
+            <div id="indDivergenceState" class="text-[10px] text-slate-400">RSI/MACD</div>
           </div>
         </div>
 
@@ -1482,6 +1531,46 @@ HTML_CONTENT = """<!DOCTYPE html>
         document.getElementById('indSupertrend').innerText = ind.supertrend_direction;
         document.getElementById('indVolume').innerText = ind.volume_ratio.toFixed(2) + 'x';
         document.getElementById('indBB').innerText = ind.bollinger_percent_b.toFixed(2);
+
+        // Institutional Suite
+        if (document.getElementById('indVWAP')) {
+          document.getElementById('indVWAP').innerText = '$' + (ind.vwap ? ind.vwap.toFixed(2) : '--');
+          document.getElementById('indVWAPBias').innerText = ind.vwap_bias === 'BULLISH' ? 'Above VWAP (Bullish)' : 'Below VWAP (Bearish)';
+          document.getElementById('indVWAPBias').className = 'text-[10px] ' + (ind.vwap_bias === 'BULLISH' ? 'text-emerald-400' : 'text-red-400');
+        }
+        if (document.getElementById('indStoch')) {
+          document.getElementById('indStoch').innerText = (ind.stoch_k ? ind.stoch_k.toFixed(1) : '--') + ' / ' + (ind.stoch_d ? ind.stoch_d.toFixed(1) : '--');
+          const stochStatus = ind.stoch_k < 25 ? 'Oversold zone' : (ind.stoch_k > 75 ? 'Overbought zone' : 'Neutral zone');
+          document.getElementById('indStochState').innerText = stochStatus;
+          document.getElementById('indStochState').className = 'text-[10px] ' + (ind.stoch_k < 25 ? 'text-emerald-400 font-bold' : (ind.stoch_k > 75 ? 'text-red-400 font-bold' : 'text-slate-400'));
+        }
+        if (document.getElementById('indFib')) {
+          document.getElementById('indFib').innerText = a.levels.fib_618 ? '$' + a.levels.fib_618.toLocaleString() : '--';
+          document.getElementById('indFibState').innerText = a.levels.is_near_golden_pocket ? 'Near 0.618 Pocket!' : (a.levels.nearest_fib_name || '0.618 Support');
+          document.getElementById('indFibState').className = 'text-[10px] ' + (a.levels.is_near_golden_pocket ? 'text-amber-400 font-bold' : 'text-slate-400');
+        }
+        if (document.getElementById('indDow')) {
+          document.getElementById('indDow').innerText = ind.dow_trend || 'NEUTRAL';
+          document.getElementById('indDowState').innerText = ind.dow_bos ? 'Break of Structure (BOS)!' : (ind.dow_structure || 'Structure');
+          document.getElementById('indDowState').className = 'text-[10px] ' + (ind.dow_trend === 'UPTREND' || ind.dow_bos ? 'text-emerald-400' : (ind.dow_trend === 'DOWNTREND' ? 'text-red-400' : 'text-slate-400'));
+        }
+        if (document.getElementById('indWyckoff')) {
+          document.getElementById('indWyckoff').innerText = ind.wyckoff_phase || 'ACCUMULATION';
+          document.getElementById('indWyckoffState').innerText = ind.wyckoff_spring ? 'Spring Test Active!' : (ind.wyckoff_safe_to_buy ? 'Safe to buy' : 'Avoid buying');
+          document.getElementById('indWyckoffState').className = 'text-[10px] ' + (ind.wyckoff_spring || ind.wyckoff_phase === 'MARKUP' ? 'text-emerald-400 font-bold' : (ind.wyckoff_phase === 'MARKDOWN' ? 'text-red-400 font-bold' : 'text-slate-400'));
+        }
+        if (document.getElementById('indPattern')) {
+          document.getElementById('indPattern').innerText = ind.chart_pattern ? ind.chart_pattern.replace(/_/g, ' ') : 'NONE';
+          document.getElementById('indPatternState').innerText = ind.chart_pattern_bullish ? 'Bullish Pattern' : (ind.chart_pattern === 'NONE' ? 'No pattern' : 'Bearish pattern');
+          document.getElementById('indPatternState').className = 'text-[10px] ' + (ind.chart_pattern_bullish ? 'text-emerald-400 font-bold' : 'text-slate-400');
+        }
+        if (document.getElementById('indDivergence')) {
+          const hasBullDiv = ind.rsi_bullish_div || ind.macd_bullish_div;
+          const hasBearDiv = ind.rsi_bearish_div;
+          document.getElementById('indDivergence').innerText = hasBullDiv ? 'BULLISH' : (hasBearDiv ? 'BEARISH' : 'NONE');
+          document.getElementById('indDivergenceState').innerText = hasBullDiv ? 'Reversal Bottom Divergence!' : (hasBearDiv ? 'Top Exhaustion' : 'No divergence');
+          document.getElementById('indDivergenceState').className = 'text-[10px] ' + (hasBullDiv ? 'text-emerald-400 font-bold' : (hasBearDiv ? 'text-red-400 font-bold' : 'text-slate-400'));
+        }
 
         // Pivots
         document.getElementById('lvlS2').innerText = '$' + a.levels.support_2.toLocaleString();

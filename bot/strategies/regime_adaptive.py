@@ -72,8 +72,47 @@ class RegimeAdaptiveStrategy(BaseStrategy):
             sig.metadata["mode"] = "TREND_FOLLOWING"
             return sig
 
-        # 3. Mean Reversion Mode -> Range Strategy
+        # 3. Mean Reversion Mode -> Range Strategy with Bear Regime Protection
         if regime_result.strategy_mode == StrategyMode.MEAN_REVERSION:
+            # If in macro bear trend, strictly require high-conviction bottom confirmation
+            if regime_result.regime in (MarketRegime.STRONG_BEAR, MarketRegime.WEAK_BEAR):
+                from bot.indicators.technical import (
+                    detect_chart_patterns,
+                    detect_wyckoff_phase,
+                    detect_divergence,
+                    detect_dow_market_structure,
+                    rsi,
+                )
+                close_s = df["close"]
+                high_s = df["high"]
+                low_s = df["low"]
+                vol_s = df["volume"]
+                patterns = detect_chart_patterns(high_s, low_s, close_s, lookback=35)
+                wyckoff = detect_wyckoff_phase(close_s, high_s, low_s, vol_s, lookback=50)
+                dow = detect_dow_market_structure(high_s, low_s, close_s, lookback=40)
+                r = df["rsi"] if "rsi" in df.columns else rsi(close_s, 14)
+                rsi_bull_div, _ = detect_divergence(close_s, r, lookback=30)
+
+                has_institutional_reversal = (
+                    patterns.is_bullish
+                    or wyckoff.has_spring
+                    or rsi_bull_div
+                    or dow.is_break_of_structure
+                )
+                if not has_institutional_reversal:
+                    return TradeSignal(
+                        timestamp=curr_ts,
+                        symbol=symbol,
+                        action=SignalAction.HOLD,
+                        price=curr_price,
+                        strategy_name=self.name,
+                        metadata={
+                            "regime": regime_result.regime.value,
+                            "mode": "STAND_ASIDE_BEAR",
+                            "reason": "Bear regime active: Standing aside to protect capital without confirmed reversal pattern.",
+                        },
+                    )
+
             sig = self.range_strat.generate_signal(df, symbol)
             sig.strategy_name = f"Adaptive[{self.range_strat.name}]"
             sig.metadata["regime"] = regime_result.regime.value

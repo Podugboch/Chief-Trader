@@ -34,16 +34,22 @@ class BotDashboard:
         equity: float,
         cash: float,
         realized_pnl: float,
-        unrealized_pnl: float,
-        total_fees: float,
-        regime: Optional[RegimeAnalysisResult],
-        indicators: Dict[str, Any],
-        positions: Dict[str, Position],
-        cb_status: Optional[CircuitBreakerStatus],
-        recent_trades: List[Dict[str, Any]],
-        strategy_name: str,
+        unrealized_pnl: float = 0.0,
+        total_fees: float = 0.0,
+        regime: Optional[RegimeAnalysisResult] = None,
+        indicators: Optional[Dict[str, Any]] = None,
+        positions: Optional[Dict[str, Position]] = None,
+        cb_status: Optional[CircuitBreakerStatus] = None,
+        recent_trades: Optional[List[Dict[str, Any]]] = None,
+        strategy_name: str = "",
     ) -> None:
         """Render snapshot table to console."""
+        if indicators is None:
+            indicators = {}
+        if positions is None:
+            positions = {}
+        if recent_trades is None:
+            recent_trades = []
         self.console.clear()
 
         # 1. Header Table

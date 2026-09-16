@@ -69,6 +69,10 @@ class TrendMomentumStrategy(BaseStrategy):
         df["supertrend_dir"] = st_dir
         df["supertrend_val"] = st_line
 
+        from bot.indicators.technical import vwap
+        df["vwap"] = vwap(high, low, close, volume)
+        df["ema_200"] = ema(close, min(200, len(df) - 1))
+
         return df
 
     def generate_signal(self, df: pd.DataFrame, symbol: str) -> TradeSignal:
@@ -83,7 +87,7 @@ class TrendMomentumStrategy(BaseStrategy):
             )
 
         # Prepare indicators if not already present
-        if "ema_fast" not in df.columns:
+        if "ema_fast" not in df.columns or "vwap" not in df.columns:
             df = self.prepare_indicators(df)
 
         curr = df.iloc[-1]
@@ -97,7 +101,6 @@ class TrendMomentumStrategy(BaseStrategy):
         # Bearish breakdown: Fast crosses below Mid OR Supertrend turns Bearish OR MACD negative divergence
         is_bearish_cross = (prev["ema_fast"] >= prev["ema_mid"]) and (curr["ema_fast"] < curr["ema_mid"])
         supertrend_bearish = curr["supertrend_dir"] == -1 and prev["supertrend_dir"] == 1
-        macd_negative = curr["macd_hist"] < 0 and prev["macd_hist"] < 0
 
         if is_bearish_cross or supertrend_bearish:
             return TradeSignal(
@@ -109,9 +112,38 @@ class TrendMomentumStrategy(BaseStrategy):
                 metadata={"reason": "Trend breakdown (EMA cross or Supertrend flip)"},
             )
 
-        # 2. Check Long Entry conditions
+        # 2. Institutional Framework Checks
+        from bot.indicators.technical import detect_dow_market_structure, detect_wyckoff_phase
+        dow = detect_dow_market_structure(df["high"], df["low"], df["close"], lookback=40)
+        wyckoff = detect_wyckoff_phase(df["close"], df["high"], df["low"], df["volume"], lookback=50)
+
+        # Dow filter: Do not buy if in confirmed downtrend unless active Break of Structure
+        if dow.trend == "DOWNTREND" and not dow.is_break_of_structure:
+            return TradeSignal(
+                timestamp=curr_ts,
+                symbol=symbol,
+                action=SignalAction.HOLD,
+                price=curr_price,
+                strategy_name=self.name,
+                metadata={"reason": "Stand aside: Dow Theory Downtrend (LH+LL)"},
+            )
+
+        # Wyckoff filter: Avoid Markdown phase
+        if wyckoff.phase == "MARKDOWN":
+            return TradeSignal(
+                timestamp=curr_ts,
+                symbol=symbol,
+                action=SignalAction.HOLD,
+                price=curr_price,
+                strategy_name=self.name,
+                metadata={"reason": "Stand aside: Wyckoff Markdown distribution in progress"},
+            )
+
+        # 3. Check Long Entry conditions
         # Ribbon Alignment: Fast > Mid > Slow
         ribbon_bullish = curr["ema_fast"] > curr["ema_mid"] > curr["ema_slow"]
+        # VWAP confirmation: Price trading above institutional VWAP
+        vwap_bullish = curr_price >= curr["vwap"]
         # Momentum check: MACD histogram positive and expanding or positive crossover
         macd_bullish = (curr["macd_hist"] > 0)
         # Momentum trigger: Recent crossover or bounce off mid EMA
@@ -127,10 +159,10 @@ class TrendMomentumStrategy(BaseStrategy):
         # Supertrend confirmation
         st_bullish = curr["supertrend_dir"] == 1
 
-        if ribbon_bullish and macd_bullish and recent_cross and rsi_healthy and vol_healthy and st_bullish:
+        if ribbon_bullish and vwap_bullish and macd_bullish and recent_cross and rsi_healthy and vol_healthy and st_bullish:
             stop_loss = curr_price - (self.stop_atr_mult * curr_atr)
             take_profit = curr_price + (self.tp_atr_mult * curr_atr)
-            confidence = min(1.0, 0.6 + (0.2 if curr["vol_ratio"] > 1.5 else 0.0) + (0.2 if curr["macd_hist"] > prev["macd_hist"] else 0.0))
+            confidence = min(1.0, 0.7 + (0.15 if curr["vol_ratio"] > 1.5 else 0.0) + (0.15 if curr["macd_hist"] > prev["macd_hist"] else 0.0))
 
             return TradeSignal(
                 timestamp=curr_ts,
@@ -146,6 +178,8 @@ class TrendMomentumStrategy(BaseStrategy):
                     "rsi": float(curr["rsi"]),
                     "macd_hist": float(curr["macd_hist"]),
                     "vol_ratio": float(curr["vol_ratio"]),
+                    "vwap": float(curr["vwap"]),
+                    "dow_trend": dow.trend,
                 },
             )
 

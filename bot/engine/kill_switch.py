@@ -20,8 +20,9 @@ class KillSwitch:
     """Monitors emergency abort conditions."""
 
     def __init__(self, flag_path: Optional[Path] = None):
+        is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
         if flag_path is None:
-            self.flag_path = Path(__file__).resolve().parent.parent.parent / "kill_switch.flag"
+            self.flag_path = Path("/tmp/kill_switch.flag") if is_serverless else (Path(__file__).resolve().parent.parent.parent / "kill_switch.flag")
         else:
             self.flag_path = Path(flag_path)
 
@@ -29,9 +30,12 @@ class KillSwitch:
         self._emergency_reason = ""
         self._on_shutdown_callback: Optional[Callable[[str], None]] = None
 
-        # Register signal handlers
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        # Register signal handlers (if in main thread)
+        try:
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+        except (ValueError, AttributeError, OSError):
+            pass
 
     def register_callback(self, callback: Callable[[str], None]) -> None:
         """Register callback invoked when kill switch fires."""

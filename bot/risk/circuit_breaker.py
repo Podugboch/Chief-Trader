@@ -48,6 +48,7 @@ class CircuitBreaker:
         self.max_consecutive_api_errors: int = 5
         self.is_hard_stopped: bool = False
         self.trip_reason: Optional[str] = None
+        self.last_status: Optional[CircuitBreakerStatus] = None
 
     def update_equity(self, current_equity: float, current_time: Optional[datetime] = None) -> CircuitBreakerStatus:
         """Update portfolio equity and evaluate drawdown limits."""
@@ -95,12 +96,29 @@ class CircuitBreaker:
 
         is_tripped = self.is_hard_stopped or (daily_dd >= self.max_daily_drawdown_pct) or (self.cooldown_remaining > 0)
 
-        return CircuitBreakerStatus(
+        status = CircuitBreakerStatus(
             is_tripped=is_tripped,
             reason=self.trip_reason if is_tripped else None,
             cooldown_remaining_bars=self.cooldown_remaining,
             daily_drawdown_pct=daily_dd,
             total_drawdown_pct=total_dd,
+            high_water_mark=self.high_water_mark,
+        )
+        self.last_status = status
+        return status
+
+    @property
+    def status(self) -> CircuitBreakerStatus:
+        """Get current circuit breaker status."""
+        if self.last_status is not None:
+            return self.last_status
+        is_tripped = self.is_hard_stopped or (self.cooldown_remaining > 0)
+        return CircuitBreakerStatus(
+            is_tripped=is_tripped,
+            reason=self.trip_reason if is_tripped else None,
+            cooldown_remaining_bars=self.cooldown_remaining,
+            daily_drawdown_pct=0.0,
+            total_drawdown_pct=0.0,
             high_water_mark=self.high_water_mark,
         )
 

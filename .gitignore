@@ -1,6 +1,7 @@
 .env
 .env.local
 .venv/
+.venv
 __pycache__/
 *.pyc
 *.pyo
@@ -18,3 +19,4 @@ build/
 *.egg-info/
 .DS_Store
 .vercel
+.env*

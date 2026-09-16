@@ -16,11 +16,23 @@ class DataStorage:
     """Handles saving and loading OHLCV data from disk."""
 
     def __init__(self, cache_dir: Optional[Path] = None):
+        is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
         if cache_dir is None:
-            self.cache_dir = Path(__file__).resolve().parent.parent.parent / "data_cache"
+            if is_serverless:
+                self.cache_dir = Path("/tmp/data_cache")
+            else:
+                self.cache_dir = Path(__file__).resolve().parent.parent.parent / "data_cache"
         else:
             self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # Fallback to /tmp in serverless/read-only filesystems
+            self.cache_dir = Path("/tmp/data_cache")
+            try:
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
 
     def _get_cache_path(self, symbol: str, timeframe: str) -> Path:
         clean_symbol = symbol.upper().replace("/", "")
@@ -32,9 +44,12 @@ class DataStorage:
 
     def save(self, df: pd.DataFrame, symbol: str, timeframe: str) -> None:
         """Save DataFrame to CSV and/or Parquet."""
-        csv_path = self._get_csv_path(symbol, timeframe)
-        # Ensure timestamp is preserved
-        df.to_csv(csv_path, index=True)
+        try:
+            csv_path = self._get_csv_path(symbol, timeframe)
+            # Ensure timestamp is preserved
+            df.to_csv(csv_path, index=True)
+        except Exception:
+            pass
 
     def load(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
         """Load DataFrame from cache if available."""

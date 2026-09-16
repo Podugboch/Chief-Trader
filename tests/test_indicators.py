@@ -137,3 +137,62 @@ def test_obv(sample_ohlcv):
     obv_val = obv(close, volume)
     assert len(obv_val) == len(close)
     assert not obv_val.isna().any()
+
+
+def test_vwap_and_rolling_vwap(sample_ohlcv):
+    from bot.indicators.technical import vwap, rolling_vwap
+    high, low, close, volume = sample_ohlcv["high"], sample_ohlcv["low"], sample_ohlcv["close"], sample_ohlcv["volume"]
+    v = vwap(high, low, close, volume)
+    rv = rolling_vwap(high, low, close, volume, 20)
+    assert len(v) == len(close)
+    assert len(rv) == len(close)
+    assert (v > 0).all()
+    assert (rv > 0).all()
+
+
+def test_stochastic_oscillator(sample_ohlcv):
+    from bot.indicators.technical import stochastic_oscillator
+    high, low, close = sample_ohlcv["high"], sample_ohlcv["low"], sample_ohlcv["close"]
+    k, d = stochastic_oscillator(high, low, close, 14, 3, 3)
+    assert len(k) == len(close)
+    assert len(d) == len(close)
+    assert (k >= 0.0).all() and (k <= 100.0).all()
+    assert (d >= 0.0).all() and (d <= 100.0).all()
+
+
+def test_fibonacci_retracement(sample_ohlcv):
+    from bot.indicators.technical import fibonacci_retracement
+    high, low, close = sample_ohlcv["high"], sample_ohlcv["low"], sample_ohlcv["close"]
+    fib = fibonacci_retracement(high, low, float(close.iloc[-1]), lookback=50)
+    assert fib.swing_high >= fib.swing_low
+    assert fib.fib_0 == fib.swing_high
+    assert fib.fib_100 == fib.swing_low
+    assert fib.fib_618 < fib.fib_382
+    assert fib.distance_pct >= 0.0
+
+
+def test_divergence_and_dow_and_wyckoff(sample_ohlcv):
+    from bot.indicators.technical import (
+        detect_divergence,
+        detect_dow_market_structure,
+        detect_wyckoff_phase,
+        detect_chart_patterns,
+        detect_elliott_wave_context,
+    )
+    high, low, close, volume = sample_ohlcv["high"], sample_ohlcv["low"], sample_ohlcv["close"], sample_ohlcv["volume"]
+    r = rsi(close, 14)
+    bull_div, bear_div = detect_divergence(close, r, lookback=30)
+    assert isinstance(bull_div, bool)
+    assert isinstance(bear_div, bool)
+
+    dow = detect_dow_market_structure(high, low, close, lookback=40)
+    assert dow.trend in ("UPTREND", "DOWNTREND", "NEUTRAL")
+
+    wyckoff = detect_wyckoff_phase(close, high, low, volume, lookback=50)
+    assert wyckoff.phase in ("ACCUMULATION", "MARKUP", "DISTRIBUTION", "MARKDOWN")
+
+    pattern = detect_chart_patterns(high, low, close, lookback=35)
+    assert pattern.pattern_name in ("DOUBLE_BOTTOM", "INVERSE_HEAD_AND_SHOULDERS", "ASCENDING_TRIANGLE", "DESCENDING_TRIANGLE", "NONE")
+
+    elliott = detect_elliott_wave_context(close, high, low, lookback=50)
+    assert elliott.phase in ("IMPULSE_BULL", "IMPULSE_BEAR", "CORRECTIVE_ABC", "NEUTRAL")
