@@ -1450,7 +1450,10 @@ HTML_CONTENT = """<!DOCTYPE html>
         const a = await res.json();
         if (a.error) return;
 
-        document.getElementById('marketSymbol').innerText = a.symbol;
+        const pairSelect = document.getElementById('marketPairSelect');
+        if (pairSelect && a.symbol) pairSelect.value = a.symbol;
+        const symEl = document.getElementById('marketSymbol');
+        if (symEl) symEl.innerText = a.symbol;
         document.getElementById('marketPrice').innerText = '$' + Number(a.latest_price).toLocaleString('en-US', {minimumFractionDigits: 2});
 
         // Regime Badge
